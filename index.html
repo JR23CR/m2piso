@@ -363,20 +363,6 @@
         .hidden {
             display: none !important;
         }
-
-        .loading-spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 4px solid white;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
         
         /* Responsive */
         @media (max-width: 768px) {
@@ -408,18 +394,21 @@
                 <h1 class="login-title">Wood Calculator Pro</h1>
                 <p class="login-subtitle">Sistema de Cubicaje de Madera</p>
             </div>
-            <!-- Mensaje de error para el usuario -->
+
             <div id="error-message" class="error-message hidden">
-                Ocurrió un error. Por favor, inténtalo de nuevo.
+                Usuario o contraseña incorrectos
             </div>
 
             <form id="login-form">
-                <p style="font-size: 14px; color: var(--gray); margin-bottom: 20px;">
-                    Iniciando sesión de forma automática y anónima para guardar tus datos.
-                </p>
-                <button type="submit" class="btn btn-primary" id="login-btn">
-                    Cargando...
-                </button>
+                <div class="form-group">
+                    <label for="username">Usuario</label>
+                    <input type="text" id="username" class="form-control" placeholder="Ingresa tu usuario" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" class="form-control" placeholder="Ingresa tu contraseña" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
             </form>
         </div>
     </div>
@@ -450,12 +439,17 @@
                             <input type="number" id="width" class="form-control" placeholder="Ej. 12" step="0.01">
                         </div>
                         <div class="form-group">
-                            <label for="client-name">Nombre del Cliente</label>
-                            <input type="text" id="client-name" class="form-control" placeholder="Nombre del cliente">
+                            <label for="lot-number">No. Lote Inventario</label>
+                            <input type="text" id="lot-number" class="form-control" placeholder="Número de lote">
                         </div>
                         <div class="form-group">
-                            <label for="project-name">Nombre del Proyecto</label>
-                            <input type="text" id="project-name" class="form-control" placeholder="Nombre del proyecto">
+                            <label for="product-type">Tipo de Producto</label>
+                            <select id="product-type" class="form-control">
+                                <option value="PISO CRUDO">PISO CRUDO</option>
+                                <option value="TABLA">TABLA</option>
+                                <option value="REGLA">REGLA</option>
+                                <option value="VIGA">VIGA</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <p style="font-size: 13px; color: var(--gray);">Fórmula: (Ancho × Piezas × Largo) ÷ 12 ÷ 10.76</p>
@@ -481,9 +475,8 @@
                         <button class="btn-export" onclick="exportToExcel()">
                             📊 Exportar a Excel
                         </button>
-                        <button class="btn-export btn-cloud" id="save-cloud-btn">
-                            <span id="save-cloud-text">☁️ Guardar en la Nube</span>
-                            <div class="loading-spinner hidden" id="save-cloud-spinner"></div>
+                        <button class="btn-export btn-whatsapp" onclick="sendToWhatsApp()">
+                            📱 Enviar por WhatsApp
                         </button>
                     </div>
                 </div>
@@ -493,39 +486,49 @@
 
     <!-- SheetJS for Excel export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Variables globales proporcionadas por el entorno de Canvas.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    <script>
+        // Usuarios del sistema (en producción esto estaría en una base de datos)
+        const users = {
+            'admin': 'admin123',
+            'usuario1': 'pass123',
+            'calculador': 'wood2023'
+        };
 
-        let db, auth, currentUser, userId;
+        let currentUser = null;
+        const whatsappNumber = '+50242181782';
 
-        // --- Lógica de la aplicación y la calculadora ---
+        // Manejo del login
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (users[username] && users[username] === password) {
+                currentUser = username;
+                document.getElementById('current-user').textContent = username;
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('calculator-screen').classList.remove('hidden');
+                document.getElementById('error-message').classList.add('hidden');
+                initializeCalculator();
+            } else {
+                document.getElementById('error-message').classList.remove('hidden');
+            }
+        });
 
-        function showLoginScreen() {
+        function logout() {
+            currentUser = null;
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('calculator-screen').classList.add('hidden');
-            document.getElementById('login-btn').textContent = 'Cargando...';
-            document.getElementById('login-btn').disabled = true;
-        }
-
-        function showCalculatorScreen() {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('calculator-screen').classList.remove('hidden');
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
             resetCalculator();
         }
 
         function resetCalculator() {
             document.getElementById('width').value = '';
-            document.getElementById('client-name').value = '';
-            document.getElementById('project-name').value = '';
+            document.getElementById('lot-number').value = '';
+            document.getElementById('product-type').value = 'PISO CRUDO';
             const pieceInputs = document.querySelectorAll('.piece-input');
             pieceInputs.forEach(input => input.value = '');
             updateAllCalculations();
@@ -533,10 +536,15 @@
 
         function initializeCalculator() {
             const widthInput = document.getElementById('width');
+            const lotNumberInput = document.getElementById('lot-number');
+            const productTypeInput = document.getElementById('product-type');
             const resultsContainer = document.getElementById('results-container');
+            const totalResult = document.getElementById('total-result');
             
+            // Generamos dinámicamente las tarjetas de resultados
             function generateLengthCards() {
                 let html = '';
+                // Generamos desde 1.00 hasta 7.00 pies con incrementos de 0.25
                 for (let i = 1; i <= 7; i += 0.25) {
                     const length = i.toFixed(2);
                     html += `
@@ -551,15 +559,16 @@
             }
             
             generateLengthCards();
+
+            // Event listeners
             widthInput.addEventListener('input', updateAllCalculations);
             
+            // Usamos delegación de eventos para los inputs dinámicos
             resultsContainer.addEventListener('input', function(e) {
                 if (e.target.classList.contains('piece-input')) {
                     updateAllCalculations();
                 }
             });
-
-            document.getElementById('save-cloud-btn').addEventListener('click', saveToCloud);
         }
 
         function calculateM2(widthInches, pieces, lengthFeet) {
@@ -591,10 +600,101 @@
             document.getElementById('total-result').textContent = total.toFixed(3);
         }
 
+        function exportToExcel() {
+            const data = collectCalculationData();
+            
+            if (data.total === 0) {
+                alert('No hay datos para exportar. Ingresa algunos valores primero.');
+                return;
+            }
+
+            // Crear workbook
+            const wb = XLSX.utils.book_new();
+            
+            // Datos del formulario siguiendo el formato del documento
+            const formData = [
+                ['HOJA DE CONTROL DE PRODUCCIÓN'],
+                ['- GIBOR SOCIEDAD ANÓNIMA -'],
+                [''],
+                ['DATOS DE INVENTARIO', '', '', '', '', '', 'Página No.', ''],
+                [''],
+                [`No. LOTE INVENTARIO: ${data.lotNumber || ''}`, '', `PRODUCTO: ${data.productType}`, '', '', '', 'CALIDAD:', ''],
+                [''],
+                [`DIMEN. PRODUCTO: ${data.width}"`, 'GROSOR:', '', 'ANCHO:', '', 'ESPECIE:', ''],
+                [''],
+                ['# piezas', 'Piezas', 'Largo', 'M²', '# piezas', 'Piezas', 'Largo', 'M²'],
+                []
+            ];
+
+            // Agregar datos de cálculo en el formato del formulario
+            let rowIndex = 0;
+            const maxRowsPerColumn = 20;
+            
+            data.calculations.forEach((calc, index) => {
+                const currentRow = Math.floor(index / 2) + 11; // Empezar después del encabezado
+                
+                if (index % 2 === 0) {
+                    // Columna izquierda
+                    if (!formData[currentRow]) formData[currentRow] = new Array(8).fill('');
+                    formData[currentRow][0] = index + 1;
+                    formData[currentRow][1] = calc.pieces;
+                    formData[currentRow][2] = parseFloat(calc.length.replace(' pies', '')).toFixed(2);
+                    formData[currentRow][3] = calc.totalM2.toFixed(3);
+                } else {
+                    // Columna derecha
+                    if (!formData[currentRow]) formData[currentRow] = new Array(8).fill('');
+                    formData[currentRow][4] = index + 1;
+                    formData[currentRow][5] = calc.pieces;
+                    formData[currentRow][6] = parseFloat(calc.length.replace(' pies', '')).toFixed(2);
+                    formData[currentRow][7] = calc.totalM2.toFixed(3);
+                }
+            });
+
+            // Completar filas vacías si es necesario
+            const minRows = 35;
+            while (formData.length < minRows) {
+                formData.push(new Array(8).fill(''));
+            }
+
+            // Agregar totales
+            formData.push(['']);
+            formData.push(['', '', '', '', '', '', '', '']);
+            formData.push(['M²', '', '', 'FECHA:', '', 'M²', '', '']);
+            formData.push(['RECIBE:', '', '', '', '', 'ENTREGA:', '', '']);
+            formData.push(['']);
+            formData.push(['TOTAL M²:', data.total.toFixed(3)]);
+
+            // Crear worksheet
+            const ws = XLSX.utils.aoa_to_sheet(formData);
+            
+            // Ajustar anchos de columna para simular el formato del formulario
+            ws['!cols'] = [
+                { width: 10 },  // # piezas
+                { width: 10 },  // Piezas
+                { width: 10 },  // Largo
+                { width: 12 },  // M²
+                { width: 10 },  // # piezas
+                { width: 10 },  // Piezas
+                { width: 10 },  // Largo
+                { width: 12 }   // M²
+            ];
+
+            // Agregar worksheet al workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Control Producción');
+            
+            // Generar nombre de archivo
+            const fileName = `Control_Produccion_${data.productType}_${data.lotNumber || 'SinLote'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            
+            // Descargar archivo
+            XLSX.writeFile(wb, fileName);
+            
+            return fileName; // Devolver el nombre del archivo para referencia
+        }
+
         function collectCalculationData() {
             const width = parseFloat(document.getElementById('width').value) || 0;
-            const clientName = document.getElementById('client-name').value;
-            const projectName = document.getElementById('project-name').value;
+            const lotNumber = document.getElementById('lot-number').value;
+            const productType = document.getElementById('product-type').value;
             const calculations = [];
             let total = 0;
 
@@ -605,11 +705,13 @@
                 const pieces = parseFloat(input.value) || 0;
                 
                 if (pieces > 0) {
+                    const m2PerUnit = calculateM2(width, 1, lengthFeet);
                     const totalM2 = calculateM2(width, pieces, lengthFeet);
                     
                     calculations.push({
-                        length: lengthFeet,
+                        length: `${lengthFeet} pies`,
                         pieces: pieces,
+                        m2PerUnit: m2PerUnit,
                         totalM2: totalM2
                     });
                     
@@ -619,175 +721,65 @@
 
             return {
                 width,
-                clientName,
-                projectName,
+                lotNumber,
+                productType,
                 calculations,
                 total
             };
         }
 
-        function exportToExcel() {
+        function sendToWhatsApp() {
             const data = collectCalculationData();
             
             if (data.total === 0) {
-                // Usar un modal o un mensaje en la UI en lugar de alert()
-                showUIMessage('No hay datos para exportar. Ingresa algunos valores primero.');
+                alert('No hay datos para enviar. Ingresa algunos valores primero.');
                 return;
             }
 
-            const wb = XLSX.utils.book_new();
+            // Primero generar el archivo Excel
+            const excelFileName = exportToExcel();
+
+            // Crear mensaje para WhatsApp
+            let message = `🪵 *WOOD CALCULATOR PRO*\n`;
+            message += `📋 *HOJA DE CONTROL DE PRODUCCIÓN*\n`;
+            message += `🏢 *GIBOR SOCIEDAD ANÓNIMA*\n\n`;
             
-            const headerData = [
-                ['WOOD CALCULATOR PRO - REPORTE DE CUBICAJE'],
-                [''],
-                ['Cliente:', data.clientName || 'No especificado'],
-                ['Proyecto:', data.projectName || 'No especificado'],
-                ['Ancho:', `${data.width}" pulgadas`],
-                ['Usuario:', userId],
-                ['Fecha:', new Date().toLocaleString()],
-                [''],
-                ['DETALLE DE CÁLCULOS'],
-                ['Largo (pies)', 'Piezas', 'Total M²']
-            ];
-
-            const calculationData = data.calculations.filter(calc => calc.pieces > 0).map(calc => [
-                `${calc.length} pies`,
-                calc.pieces,
-                calc.totalM2.toFixed(3)
-            ]);
-
-            calculationData.push(
-                ['', '', ''],
-                ['', 'TOTAL M²:', data.total.toFixed(3)]
-            );
-
-            const allData = [...headerData, ...calculationData];
-            const ws = XLSX.utils.aoa_to_sheet(allData);
+            message += `📦 *No. Lote Inventario:* ${data.lotNumber || 'No especificado'}\n`;
+            message += `🔨 *Tipo de Producto:* ${data.productType}\n`;
+            message += `📏 *Ancho:* ${data.width}" pulgadas\n`;
+            message += `👨‍💼 *Usuario:* ${currentUser}\n`;
+            message += `📅 *Fecha:* ${new Date().toLocaleString()}\n\n`;
             
-            ws['!cols'] = [
-                { width: 15 },
-                { width: 10 },
-                { width: 15 }
-            ];
-
-            XLSX.utils.book_append_sheet(wb, ws, 'Reporte Cubicaje');
-            const fileName = `Cubicaje_${data.clientName || 'Cliente'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-            XLSX.writeFile(wb, fileName);
-        }
-
-        // --- Lógica de Firebase y base de datos ---
-
-        async function initFirebaseAndAuth() {
-            if (!firebaseConfig) {
-                console.error("Firebase config is not available. Please ensure '__firebase_config' is set.");
-                showUIMessage('Error de configuración. La aplicación no puede iniciarse.');
-                return;
-            }
-
-            // Inicializar la aplicación, autenticación y base de datos
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            setLogLevel('debug');
-
-            // Autenticar al usuario
-            const loginBtn = document.getElementById('login-btn');
-            try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Error signing in:", error);
-                showUIMessage('Error al iniciar sesión. Por favor, inténtalo de nuevo.');
-                loginBtn.textContent = 'Intentar de nuevo';
-                loginBtn.disabled = false;
-            }
-
-            // Observador del estado de autenticación
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    currentUser = user;
-                    userId = user.uid;
-                    document.getElementById('current-user').textContent = 'ID de Usuario: ' + userId;
-                    loginBtn.textContent = 'Iniciar Sesión';
-                    showCalculatorScreen();
-                    initializeCalculator();
-                } else {
-                    currentUser = null;
-                    userId = null;
-                    document.getElementById('current-user').textContent = '';
-                    showLoginScreen();
-                }
+            message += `📊 *DETALLE DE PRODUCCIÓN:*\n`;
+            message += `────────────────────\n`;
+            
+            data.calculations.forEach((calc, index) => {
+                message += `${index + 1}. ${calc.length}: ${calc.pieces} piezas = ${calc.totalM2.toFixed(3)} m²\n`;
             });
-        }
-
-        async function logout() {
-            try {
-                await signOut(auth);
-            } catch (error) {
-                console.error("Error signing out:", error);
-            }
-        }
-
-        async function saveToCloud() {
-            const data = collectCalculationData();
-            const saveBtn = document.getElementById('save-cloud-btn');
-            const saveText = document.getElementById('save-cloud-text');
-            const saveSpinner = document.getElementById('save-cloud-spinner');
             
-            if (data.total === 0) {
-                showUIMessage('No hay datos para guardar. Ingresa algunos valores primero.');
-                return;
-            }
+            message += `────────────────────\n`;
+            message += `🎯 *TOTAL: ${data.total.toFixed(3)} m²*\n\n`;
+            message += `💡 Fórmula: (Ancho × Piezas × Largo) ÷ 12 ÷ 10.76\n\n`;
+            message += `📎 Se ha generado el archivo Excel: *${excelFileName}*\n`;
+            message += `📋 El formulario contiene todos los datos organizados según el formato de control de producción.`;
 
-            // Muestra el spinner de carga
-            saveText.classList.add('hidden');
-            saveSpinner.classList.remove('hidden');
-            saveBtn.disabled = true;
-
-            try {
-                // Crea la ruta de la colección para guardar los datos de forma privada
-                const privateCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'reports');
-
-                const reportData = {
-                    clientName: data.clientName || 'No especificado',
-                    projectName: data.projectName || 'No especificado',
-                    width: data.width,
-                    totalM2: data.total,
-                    calculations: data.calculations,
-                    timestamp: serverTimestamp(),
-                    user: userId
-                };
-
-                const docRef = await addDoc(privateCollectionRef, reportData);
-                showUIMessage(`✅ Cálculo guardado con éxito! ID: ${docRef.id}`);
-
-            } catch (e) {
-                console.error("Error al añadir el documento: ", e);
-                showUIMessage('❌ Ocurrió un error al guardar. Por favor, inténtalo de nuevo.');
-            } finally {
-                // Oculta el spinner y habilita el botón
-                saveText.classList.remove('hidden');
-                saveSpinner.classList.add('hidden');
-                saveBtn.disabled = false;
-            }
-        }
-        
-        // Función para mostrar mensajes en la UI (sustituye a alert())
-        function showUIMessage(message) {
-            const errorMessageEl = document.getElementById('error-message');
-            errorMessageEl.textContent = message;
-            errorMessageEl.classList.remove('hidden');
-            setTimeout(() => {
-                errorMessageEl.classList.add('hidden');
-            }, 5000);
+            // Codificar mensaje para URL
+            const encodedMessage = encodeURIComponent(message);
+            
+            // Crear URL de WhatsApp
+            const whatsappURL = `https://wa.me/${whatsappNumber.replace('+', '')}?text=${encodedMessage}`;
+            
+            // Abrir WhatsApp en una nueva ventana
+            window.open(whatsappURL, '_blank');
+            
+            // Mostrar mensaje informativo
+            alert(`Reporte enviado a WhatsApp.\n\nArchivo Excel generado: ${excelFileName}\n\nEl archivo se descargó automáticamente y puedes adjuntarlo manualmente al chat de WhatsApp.`);
         }
 
-        // Iniciar la aplicación de Firebase y la autenticación
-        document.addEventListener('DOMContentLoaded', initFirebaseAndAuth);
-
+        // Inicializar cuando se carga la página
+        document.addEventListener('DOMContentLoaded', function() {
+            // La calculadora se inicializa después del login
+        });
     </script>
 </body>
 </html>
